@@ -69,64 +69,48 @@ export default function QuizPage() {
 
   // Fetch article and quiz data
   useEffect(() => {
-    const fetchArticle = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`/api/articles/${params.id}`);
+  // QuizPage доторх fetchArticle функц
+const fetchArticle = async () => {
+  try {
+    setLoading(true);
+    const response = await fetch(`/api/articles/${params.id}`);
+    const data = await response.json();
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch article");
-        }
+    // Хэрэв асуултууд байхгүй бол AI-аас асууна
+    if (!data.quizzes || data.quizzes.length === 0) {
+      const quizResponse = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: data.content }), 
+      });
 
-        const data = await response.json();
-
-        // Check if article has quizzes
-        if (!data.quizzes || data.quizzes.length === 0) {
-          // Generate quizzes if none exist
-          const quizResponse = await fetch("/api/generate", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ content: data.content }),
-          });
-
-          if (!quizResponse.ok) {
-            throw new Error("Failed to generate quiz");
-          }
-
-          const quizData = await quizResponse.json();
-
-          // Save quizzes to database
-          const saveResponse = await fetch(
-            `/api/articles/${params.id}/quizzes`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ quizzes: quizData.quizzes }),
-            }
-          );
-
-          if (!saveResponse.ok) {
-            throw new Error("Failed to save quiz");
-          }
-
-          // Fetch updated article with quizzes
-          const updatedResponse = await fetch(`/api/articles/${params.id}`);
-          const updatedData = await updatedResponse.json();
-          setArticle(updatedData);
-        } else {
-          setArticle(data);
-        }
-      } catch (error) {
-        console.error("Error:", error);
-        setError(error instanceof Error ? error.message : "An error occurred");
-      } finally {
-        setLoading(false);
+      const quizData = await quizResponse.json();
+      
+      if (!quizData.quizzes || quizData.quizzes.length === 0) {
+        throw new Error("AI failed to generate quiz array structure correctly");
       }
-    };
+
+      // БААЗ РУУ ХАДГАЛАХ: Энд params.id-г ашиглаж байгааг анхаар
+      const saveResponse = await fetch(`/api/articles/${params.id}/quizzes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quizzes: quizData.quizzes }), // quizData.quizzes-г явуулна
+      });
+
+      if (saveResponse.ok) {
+        // Амжилттай хадгалагдсан бол өгөгдлөө дахин татна
+        const finalResponse = await fetch(`/api/articles/${params.id}`);
+        setArticle(await finalResponse.json());
+      }
+    } else {
+      setArticle(data);
+    }
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "An error occurred");
+  } finally {
+    setLoading(false);
+  }
+};  
 
     fetchArticle();
   }, [params.id]);
@@ -219,16 +203,14 @@ export default function QuizPage() {
     try {
       const timeSpent = getTimeSpent();
       const response = await fetch("/api/scores", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          articleId: article.id,
-          score: score,
-          timeSpent: timeSpent,
-        }),
-      });
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    articleId: article.id,
+    score: score,
+    timeSpent: timeSpent,
+  }),
+});
 
       if (!response.ok) {
         throw new Error("Failed to save score");
@@ -367,7 +349,7 @@ export default function QuizPage() {
                   <h3 className="text-lg font-medium">
                     {currentQuestion.question}
                   </h3>
-                  <RadioGroup
+                  {/* <RadioGroup
                     value={
                       selectedAnswers[currentQuestion.id]?.toString() || ""
                     }
@@ -384,7 +366,26 @@ export default function QuizPage() {
                         <Label htmlFor={`option-${index}`}>{option}</Label>
                       </div>
                     ))}
-                  </RadioGroup>
+                  </RadioGroup> */}
+                  <RadioGroup
+  // 1. Ensure the value passed to RadioGroup is a string
+  value={selectedAnswers[currentQuestion.id]?.toString() || ""}
+  onValueChange={(value) =>
+    // 2. Parse the string back to a number before saving to state
+    handleAnswerSelect(currentQuestion.id, parseInt(value))
+  }
+>
+  {currentQuestion.options.map((option, index) => (
+    <div key={index} className="flex items-center space-x-2">
+      <RadioGroupItem
+        // 3. The value of the item must be a string
+        value={index.toString()} 
+        id={`option-${index}`}
+      />
+      <Label htmlFor={`option-${index}`}>{option}</Label>
+    </div>
+  ))}
+</RadioGroup>
                 </div>
                 <div className="flex justify-end">
                   <Button

@@ -14,3 +14,31 @@ export const config = {
     "/(api|trpc)(.*)",
   ],
 };
+
+
+
+// import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+
+// // Нэвтрэх шаардлагагүй (Public) замууд
+// const isPublicRoute = createRouteMatcher([
+//   "/api/webhooks(.*)", 
+//   "/api/articles(.*)", 
+//   "/api/generate(.*)",
+//   "/sign-in(.*)",
+//   "/sign-up(.*)"
+// ]);
+
+// export default clerkMiddleware((auth, req) => {
+//   // ШИНЭЧЛЭГДСЭН: auth() функцээс protect-ийг шууд дуудна
+//   if (!isPublicRoute(req)) {
+//     auth().protect();
+//   }
+// });
+
+// export const config = {
+//   matcher: [
+//     // Next.js-ийн статик файлуудыг алгасах, бусад бүх хүсэлтийг Middleware-ээр дамжуулах
+//     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+//     "/(api|trpc)(.*)",
+//   ],
+// };

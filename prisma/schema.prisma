@@ -10,6 +10,7 @@ datasource db {
 model User {
   id           String        @id @default(cuid())
   clerkId      String        @unique
+  isVerified Boolean  @default(false)
   email        String        @unique
   name         String?
   createdAt    DateTime      @default(now())
@@ -29,6 +30,7 @@ model Article {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   quizzes   Quiz[]
+  userScores  UserScore[]
 }
 
 model Quiz {
@@ -40,18 +42,19 @@ model Quiz {
   article      Article       @relation(fields: [articleId], references: [id])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  quizAttempts QuizAttempt[]
-  userScores   UserScore[]
+  quizAttempts QuizAttempt[]  
 }
 
 model UserScore {
-  id        String   @id @default(cuid())
-  quizId    String
-  userId    String
-  score     Int
-  createdAt DateTime @default(now())
-  quiz      Quiz     @relation(fields: [quizId], references: [id])
-  user      User     @relation(fields: [userId], references: [id])
+  id         String   @id @default(cuid())
+  articleId  String
+  userId     String
+  score      Int
+  timeSpent  Int
+  createdAt  DateTime @default(now())
+  
+  article    Article  @relation(fields: [articleId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
 }
 
 model QuizAttempt {
