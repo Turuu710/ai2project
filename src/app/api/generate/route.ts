@@ -9,24 +9,28 @@ export async function POST(request: Request) {
   try {
     const { content } = await request.json();
 
+    if (!content) {
+      return NextResponse.json({ error: "Агуулга хоосон байна" }, { status: 400 });
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are an educational assistant. 
-          Return ONLY a JSON object with this EXACT structure:
+          content: `Чи бол боловсролын туслах багш. 
+          Заавал дараах JSON бүтцээр хариу өгнө үү:
           {
             "summary": "string",
             "quizzes": [
               {
                 "question": "string",
                 "options": ["string", "string", "string", "string"],
-                "answer": number
+                "answer": number (зөв хариултын индекс: 0-ээс 3 хүртэл)
               }
             ]
           }
-          Generate exactly 5 questions. Do not include any markdown formatting like \`\`\`json.`
+          Нийт 5 асуулт үүсгэнэ үү.`
         },
         {
           role: "user",
@@ -40,12 +44,12 @@ export async function POST(request: Request) {
     const data = JSON.parse(responseContent || "{}");
 
     return NextResponse.json({
-      summary: data.summary || "No summary generated",
+      summary: data.summary || "Товчлол үүсгэж чадсангүй",
       quizzes: data.quizzes || []
     });
 
   } catch (error) {
     console.error("AI Error:", error);
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+    return NextResponse.json({ error: "Сервер дээр алдаа гарлаа" }, { status: 500 });
   }
 }
