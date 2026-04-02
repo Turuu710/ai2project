@@ -1,10 +1,10 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
-  // url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
 }
 
 model User {
@@ -21,16 +21,16 @@ model User {
 }
 
 model Article {
-  id        String   @id @default(cuid())
-  title     String
-  content   String
-  summary   String
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  quizzes   Quiz[]
-  userScores  UserScore[]
+  id         String      @id @default(cuid())
+  title      String
+  content    String
+  summary    String
+  userId     String
+  user       User        @relation(fields: [userId], references: [id])
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  quizzes    Quiz[]
+  userScores UserScore[]
 }
 
 model Quiz {
@@ -42,19 +42,19 @@ model Quiz {
   article      Article       @relation(fields: [articleId], references: [id])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
-  quizAttempts QuizAttempt[]  
+  quizAttempts QuizAttempt[]
 }
 
 model UserScore {
-  id         String   @id @default(cuid())
-  articleId  String
-  userId     String
-  score      Int
-  timeSpent  Int
-  createdAt  DateTime @default(now())
-  
-  article    Article  @relation(fields: [articleId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  id        String   @id @default(cuid())
+  articleId String
+  userId    String
+  score     Int
+  timeSpent Int
+  createdAt DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 }
 
 model QuizAttempt {
