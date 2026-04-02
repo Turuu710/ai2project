@@ -155,6 +155,43 @@ import { syncUser } from "@/lib/sync-user";
 import { prisma } from "@/lib/prisma";
 import { auth, currentUser } from "@clerk/nextjs/server";
 
+export async function GET() {
+  try {
+    const { userId: clerkId } = await auth();
+    if (!clerkId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await currentUser();
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 401 });
+    }
+
+    const email = user.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase();
+    const name = user.fullName?.trim() || user.firstName?.trim() || "User";
+
+    if (!email) {
+      return NextResponse.json({ error: "Email олдсонгүй" }, { status: 400 });
+    }
+
+    const dbUser = await syncUser({ clerkId, email, name });
+
+    const articles = await prisma.article.findMany({
+      where: { userId: dbUser.id },
+      orderBy: { createdAt: "desc" },
+      include: { quizzes: true },
+    });
+
+    return NextResponse.json(articles, { status: 200 });
+  } catch (error) {
+    console.error("GET Articles Error:", error);
+    return NextResponse.json(
+      { error: "Датаг авахад алдаа гарлаа" },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { userId: clerkId } = await auth();
@@ -186,9 +223,7 @@ export async function POST(request: Request) {
       );
     }
 
-    
     const rawQuizzes = Array.isArray(quizzes) ? quizzes : [];
-
     const normalizedQuizzes = rawQuizzes
       .map((q: any) => {
         const options = Array.isArray(q.options)
@@ -196,18 +231,15 @@ export async function POST(request: Request) {
               .filter(
                 (opt: any) => typeof opt === "string" && opt.trim() !== "",
               )
-              .map((o: string) => o.trim())
+              .map((o: any) => o.trim())
           : [];
-
 
         let finalAnswer = "0";
         if (typeof q.answer === "number") {
           finalAnswer = String(q.answer);
         } else if (typeof q.answer === "string") {
-         
-          const foundIndex = options.indexOf(q.answer.trim());
-          finalAnswer =
-            foundIndex !== -1 ? String(foundIndex) : q.answer.trim();
+          const idx = options.indexOf(q.answer.trim());
+          finalAnswer = idx !== -1 ? String(idx) : q.answer.trim();
         }
 
         return {
@@ -216,14 +248,12 @@ export async function POST(request: Request) {
           answer: finalAnswer,
         };
       })
-
-      .filter((q) => q.question.length > 0 && q.options.length >= 2);
-
+      .filter((q) => q.question !== "" && q.options.length >= 2);
 
     const existingArticle = await prisma.article.findFirst({
       where: {
         userId: dbUser.id,
-        title: title?.trim() || "Гарчиггүй",
+        title: title?.trim() || "Гарчиггүй артикл",
         content: content.trim(),
       },
       include: { quizzes: true },
@@ -232,7 +262,6 @@ export async function POST(request: Request) {
     if (existingArticle) {
       return NextResponse.json(existingArticle, { status: 200 });
     }
-
 
     const article = await prisma.article.create({
       data: {
@@ -258,7 +287,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("POST API Error:", error);
     return NextResponse.json(
-      { error: "Сервер дээр алдаа гарлаа" },
+      { error: "Хадгалахад алдаа гарлаа" },
       { status: 500 },
     );
   }
