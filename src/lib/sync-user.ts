@@ -1,23 +1,41 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { prisma } from "./prisma";
+import { prisma } from "@/lib/prisma";
 
-export const syncUser = async () => {
-  const { userId } = await auth();
-  if (!userId) return null;
+type SyncUserInput = {
+  clerkId: string;
+  email: string;
+  name?: string | null;
+};
 
-  const user = await currentUser();
-  if (!user) return null;
+export async function syncUser({
+  clerkId,
+  email,
+  name,
+}: SyncUserInput) {
+  const safeEmail = email.trim().toLowerCase();
+  const safeName = name?.trim() || "User";
 
-  return await prisma.user.upsert({
-    where: { clerkId: userId },
-    update: {
-      email: user.emailAddresses[0].emailAddress,
-      name: `${user.firstName} ${user.lastName}`,
-    },
-    create: {
-      clerkId: userId,
-      email: user.emailAddresses[0].emailAddress,
-      name: `${user.firstName} ${user.lastName}`,
+  const existingUser = await prisma.user.findFirst({
+    where: {
+      OR: [{ clerkId }, { email: safeEmail }],
     },
   });
-};
+
+  if (existingUser) {
+    return await prisma.user.update({
+      where: { id: existingUser.id },
+      data: {
+        clerkId,
+        email: safeEmail,
+        name: safeName,
+      },
+    });
+  }
+
+  return await prisma.user.create({
+    data: {
+      clerkId,
+      email: safeEmail,
+      name: safeName,
+    },
+  });
+}

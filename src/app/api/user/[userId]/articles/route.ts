@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 
 export async function GET(
   request: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: { userId: string } },
 ) {
   try {
     const { userId: currentUserId } = await auth();
@@ -21,9 +21,9 @@ export async function GET(
       },
       include: {
         _count: {
-          select: { quizzes: true }
-        }
-      }
+          select: { quizzes: true },
+        },
+      },
     });
 
     return NextResponse.json(articles);
@@ -31,7 +31,7 @@ export async function GET(
     console.error("Fetch User Articles Error:", error);
     return NextResponse.json(
       { error: "Нийтлэлүүдийг авахад алдаа гарлаа" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

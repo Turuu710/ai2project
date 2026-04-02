@@ -1,50 +1,212 @@
+// import { NextResponse } from "next/server";
+// import { syncUser } from "@/lib/sync-user";
+// import { prisma } from "@/lib/prisma";
+// import { auth, currentUser } from "@clerk/nextjs/server";
+
+// export async function GET() {
+//   try {
+//     const dbUser = await syncUser();
+
+//     if (!dbUser) {
+//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+//     }
+
+//     const articles = await prisma.article.findMany({
+//       where: { userId: dbUser.id },
+//       orderBy: { createdAt: "desc" },
+//     });
+
+//     return NextResponse.json(articles || []);
+//   } catch (error) {
+//     console.error("GET Articles Error:", error);
+//     return NextResponse.json(
+//       { error: "Датаг авахад алдаа гарлаа" },
+//       { status: 500 },
+//     );
+//   }
+// }
+
+// export async function POST(request: Request) {
+//   try {
+//     const dbUser = await syncUser();
+
+//     if (!dbUser) {
+//       return NextResponse.json(
+//         { error: "Нэвтрэх шаардлагатай" },
+//         { status: 401 },
+//       );
+//     }
+
+//     const body = await request.json();
+//     const { title, content, summary } = body;
+
+//     const article = await prisma.article.create({
+//       data: {
+//         title: title || "Гарчиггүй артикл",
+//         content: content,
+//         summary: summary,
+//         userId: dbUser.id,
+//       },
+//     });
+
+//     return NextResponse.json(article, { status: 201 });
+//   } catch (error) {
+//     console.error("POST API Error:", error);
+//     return NextResponse.json(
+//       { error: "Хадгалахад алдаа гарлаа" },
+//       { status: 500 },
+//     );
+//   }
+// }
 import { NextResponse } from "next/server";
 import { syncUser } from "@/lib/sync-user";
 import { prisma } from "@/lib/prisma";
+import { auth, currentUser } from "@clerk/nextjs/server";
 
 export async function GET() {
   try {
-    const dbUser = await syncUser();
-    
-    if (!dbUser) {
+    const { userId: clerkId } = await auth();
+    const user = await currentUser();
+
+    if (!clerkId || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const email = user.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase();
+    const name = user.fullName?.trim() || user.firstName?.trim() || "User";
+
+    if (!email) {
+      return NextResponse.json({ error: "Email олдсонгүй" }, { status: 400 });
+    }
+
+    const dbUser = await syncUser({
+      clerkId,
+      email,
+      name,
+    });
 
     const articles = await prisma.article.findMany({
       where: { userId: dbUser.id },
       orderBy: { createdAt: "desc" },
+      include: {
+        quizzes: true,
+      },
     });
 
-    return NextResponse.json(articles || []);
+    return NextResponse.json(articles, { status: 200 });
   } catch (error) {
     console.error("GET Articles Error:", error);
-    return NextResponse.json({ error: "Датаг авахад алдаа гарлаа" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Датаг авахад алдаа гарлаа" },
+      { status: 500 },
+    );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const dbUser = await syncUser();
-    
-    if (!dbUser) {
-      return NextResponse.json({ error: "Нэвтрэх шаардлагатай" }, { status: 401 });
+    const { userId: clerkId } = await auth();
+    const user = await currentUser();
+
+    if (!clerkId || !user) {
+      return NextResponse.json(
+        { error: "Нэвтрэх шаардлагатай" },
+        { status: 401 },
+      );
     }
 
+    const email = user.emailAddresses?.[0]?.emailAddress?.trim().toLowerCase();
+    const name = user.fullName?.trim() || user.firstName?.trim() || "User";
+
+    if (!email) {
+      return NextResponse.json({ error: "Email олдсонгүй" }, { status: 400 });
+    }
+
+    const dbUser = await syncUser({
+      clerkId,
+      email,
+      name,
+    });
+
     const body = await request.json();
-    const { title, content, summary } = body;
-    
+    const title =
+      typeof body.title === "string" && body.title.trim()
+        ? body.title.trim()
+        : "Гарчиггүй артикл";
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+    const quizzes = Array.isArray(body.quizzes) ? body.quizzes : [];
+
+    if (!content || !summary) {
+      return NextResponse.json(
+        { error: "content болон summary шаардлагатай" },
+        { status: 400 },
+      );
+    }
+
+    const existingArticle = await prisma.article.findFirst({
+      where: {
+        userId: dbUser.id,
+        title,
+        content,
+      },
+      include: {
+        quizzes: true,
+      },
+    });
+
+    if (existingArticle) {
+      return NextResponse.json(existingArticle, { status: 200 });
+    }
+
+    const normalizedQuizzes = quizzes
+      .map((q: any) => {
+        const options = Array.isArray(q.options)
+          ? q.options
+              .filter(
+                (opt: any) => typeof opt === "string" && opt.trim() !== "",
+              )
+              .slice(0, 4)
+          : [];
+
+        const answer =
+          q.answer !== undefined && q.answer !== null ? String(q.answer) : "0";
+
+        return {
+          question: typeof q.question === "string" ? q.question.trim() : "",
+          options,
+          answer,
+        };
+      })
+      .filter((q: any) => q.question !== "" && q.options.length > 0);
+
     const article = await prisma.article.create({
       data: {
-        title: title || "Гарчиггүй артикл",
-        content: content,
-        summary: summary,
-        userId: dbUser.id, 
-      }
+        title,
+        content,
+        summary,
+        userId: dbUser.id,
+        quizzes: normalizedQuizzes.length
+          ? {
+              create: normalizedQuizzes.map((q: any) => ({
+                question: q.question,
+                options: q.options,
+                answer: q.answer,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        quizzes: true,
+      },
     });
 
     return NextResponse.json(article, { status: 201 });
   } catch (error) {
     console.error("POST API Error:", error);
-    return NextResponse.json({ error: "Хадгалахад алдаа гарлаа" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Хадгалахад алдаа гарлаа" },
+      { status: 500 },
+    );
   }
 }
